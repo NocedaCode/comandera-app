@@ -57,6 +57,7 @@ public/
   file.svg
   globe.svg
   next.svg
+  Notificacion.mp3
   vercel.svg
   window.svg
 .gitignore
@@ -76,189 +77,153 @@ This section contains the contents of the repository's files.
 
 <file path="app/camarero/page.jsx">
 'use client'
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
 
 export default function CamareroPage() {
-  const [conexionOK, setConexionOK] = useState(null)
   const [mesa, setMesa] = useState('')
   const [tipoServicio, setTipoServicio] = useState('aqui')
   const [productoNombre, setProductoNombre] = useState('')
   const [cantidad, setCantidad] = useState(1)
+  const [notas, setNotas] = useState('')
+  const [totalComanda, setTotalComanda] = useState('')
   const [carrito, setCarrito] = useState([])
   const [enviando, setEnviando] = useState(false)
 
-  useEffect(() => {
-    async function probarConexion() {
-      try {
-        const { error } = await supabase.from('pedidos').select('id').limit(1)
-        if (error) {
-          console.error('Error de conexión:', error)
-          setConexionOK(false)
-        } else {
-          setConexionOK(true)
-        }
-      } catch (err) {
-        console.error(err)
-        setConexionOK(false)
-      }
-    }
-    probarConexion()
-  }, [])
-
   const agregarAlCarrito = () => {
     if (!productoNombre.trim()) return
-    setCarrito([...carrito, { nombre: productoNombre, cantidad: Number(cantidad) }])
+    setCarrito([...carrito, { nombre: productoNombre.trim(), cantidad: Number(cantidad), notas: notas.trim() }])
     setProductoNombre('')
     setCantidad(1)
-  }
-
-  const eliminarDelCarrito = (index) => {
-    setCarrito(carrito.filter((_, i) => i !== index))
+    setNotas('')
   }
 
   const enviarPedido = async () => {
-    if (!mesa.trim()) return alert('Por favor ingresa el número de mesa o cliente')
+    if (!mesa.trim()) return alert('Por favor ingresa la mesa o cliente')
     if (carrito.length === 0) return alert('Agrega al menos un producto')
+    if (!totalComanda || Number(totalComanda) <= 0) return alert('Ingresa un monto válido')
 
     setEnviando(true)
     const { error } = await supabase.from('pedidos').insert([
-      {
-        mesa: mesa,
-        tipo_servicio: tipoServicio,
-        items: carrito,
-        estado: 'pendiente'
-      }
+      { mesa, tipo_servicio: tipoServicio, items: carrito, total: parseFloat(totalComanda), estado: 'pendiente' }
     ])
 
     setEnviando(false)
-
     if (error) {
-      alert('Error al enviar el pedido: ' + error.message)
+      alert('Error: ' + error.message)
     } else {
-      alert('¡Pedido enviado con éxito a la cocina!')
+      alert('Comanda enviada a cocina')
       setCarrito([])
       setMesa('')
+      setTotalComanda('')
     }
   }
 
   return (
-    <div className="min-h-screen bg-slate-100 p-4 max-w-md mx-auto">
-      {/* Estado de Conexión */}
-      <div className="mb-4 text-center">
-        {conexionOK === null && (
-          <span className="bg-yellow-100 text-yellow-800 text-xs px-3 py-1 rounded-full font-semibold">
-            Verificando conexión...
-          </span>
-        )}
-        {conexionOK === true && (
-          <span className="bg-emerald-100 text-emerald-800 text-xs px-3 py-1 rounded-full font-semibold">
-            🟢 Base de Datos Conectada
-          </span>
-        )}
-        {conexionOK === false && (
-          <span className="bg-red-100 text-red-800 text-xs px-3 py-1 rounded-full font-semibold">
-            🔴 Error de Conexión
-          </span>
-        )}
-      </div>
-
-      <h1 className="text-2xl font-bold text-slate-800 text-center mb-6">Toma de Pedidos</h1>
+    <div className="page-container pb-12">
+      <h1 className="header-title">Toma de Pedidos</h1>
+      <p className="header-subtitle mb-6">Módulo de Atención</p>
 
       {/* Tipo de Servicio */}
-      <div className="flex gap-2 mb-4">
+      <div className="grid grid-cols-2 gap-3 mb-6">
         <button
           onClick={() => setTipoServicio('aqui')}
-          className={`flex-1 py-3 font-bold rounded-xl text-sm border transition ${
-            tipoServicio === 'aqui'
-              ? 'bg-blue-600 text-white border-blue-600'
-              : 'bg-white text-slate-700 border-slate-300'
-          }`}
+          className={`py-4 text-xs ${tipoServicio === 'aqui' ? 'btn-primario' : 'btn-secundario'}`}
         >
-          🍽️ Comer Aquí
+          COMER AQUÍ
         </button>
         <button
           onClick={() => setTipoServicio('delivery')}
-          className={`flex-1 py-3 font-bold rounded-xl text-sm border transition ${
-            tipoServicio === 'delivery'
-              ? 'bg-red-600 text-white border-red-600'
-              : 'bg-white text-slate-700 border-slate-300'
-          }`}
+          className={`py-4 text-xs ${tipoServicio === 'delivery' ? 'btn-primario' : 'btn-secundario'}`}
         >
-          🛵 Delivery / Llevar
+          DELIVERY
         </button>
       </div>
 
-      {/* Mesa / Cliente */}
-      <div className="mb-4">
-        <label className="block text-xs font-bold text-slate-600 uppercase mb-1">
-          {tipoServicio === 'aqui' ? 'Número de Mesa' : 'Nombre del Cliente / Delivery'}
+      <div className="mb-6">
+        <label className="input-label">
+          {tipoServicio === 'aqui' ? 'Mesa / Ubicación' : 'Nombre del Cliente'}
         </label>
         <input
           type="text"
-          placeholder={tipoServicio === 'aqui' ? 'Ejemplo: Mesa 4' : 'Ejemplo: Carlos (Delivery)'}
+          placeholder={tipoServicio === 'aqui' ? 'Ej: Mesa 04' : 'Ej: Carlos'}
           value={mesa}
           onChange={(e) => setMesa(e.target.value)}
-          className="w-full p-3 border border-slate-300 rounded-xl text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="input-field"
         />
       </div>
 
-      {/* Inputs de Productos */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200 mb-4 shadow-sm">
-        <h2 className="text-sm font-bold text-slate-700 mb-3">Agregar Item al Pedido</h2>
-        <div className="flex gap-2 mb-3">
+      {/* Agregar Platillos */}
+      <div className="card-panel mb-6 space-y-4">
+        <label className="input-label">Agregar Platillo</label>
+        
+        <div className="flex gap-2">
           <input
             type="text"
-            placeholder="Ej: Hamburguesa Especial"
+            placeholder="Platillo..."
             value={productoNombre}
             onChange={(e) => setProductoNombre(e.target.value)}
-            className="flex-1 p-2.5 border border-slate-300 rounded-lg text-slate-900 bg-white text-sm"
+            className="input-field flex-1"
           />
           <input
             type="number"
             min="1"
             value={cantidad}
             onChange={(e) => setCantidad(e.target.value)}
-            className="w-16 p-2.5 border border-slate-300 rounded-lg text-slate-900 bg-white text-center text-sm font-bold"
+            className="input-field w-16 text-center font-black text-amber-400"
           />
         </div>
-        <button
-          onClick={agregarAlCarrito}
-          className="w-full bg-slate-800 text-white py-2.5 rounded-lg text-sm font-bold active:scale-95 transition"
-        >
-          + Agregar al Carrito
+
+        <input
+          type="text"
+          placeholder="Observaciones (opcional)..."
+          value={notas}
+          onChange={(e) => setNotas(e.target.value)}
+          className="input-field text-xs italic"
+        />
+
+        <button onClick={agregarAlCarrito} className="btn-secundario py-3 text-xs">
+          + AGREGAR A LA COMANDA
         </button>
       </div>
 
-      {/* Carrito */}
+      {/* Carrito de Pedidos */}
       {carrito.length > 0 && (
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 mb-6 shadow-sm">
-          <h2 className="text-sm font-bold text-slate-700 mb-2">Resumen de la Comanda:</h2>
-          <ul className="divide-y divide-slate-100">
+        <div className="card-panel mb-6 space-y-4">
+          <label className="input-label border-b border-neutral-800 pb-2">Resumen de la Orden</label>
+          <ul className="space-y-3">
             {carrito.map((item, idx) => (
-              <li key={idx} className="py-2 flex justify-between items-center text-slate-800 text-sm">
-                <span>
-                  <strong>{item.cantidad}x</strong> {item.nombre}
-                </span>
+              <li key={idx} className="flex justify-between items-start text-xs border-b border-neutral-800/50 pb-2">
+                <div>
+                  <strong className="text-amber-400">{item.cantidad}x</strong> {item.nombre}
+                  {item.notas && <p className="text-[11px] text-amber-300/80 italic">Nota: {item.notas}</p>}
+                </div>
                 <button
-                  onClick={() => eliminarDelCarrito(idx)}
-                  className="text-red-500 font-bold px-2 py-1 text-xs"
+                  onClick={() => setCarrito(carrito.filter((_, i) => i !== idx))}
+                  className="text-red-400 hover:text-red-300 font-bold text-xs uppercase"
                 >
-                  Quitar
+                  Eliminar
                 </button>
               </li>
             ))}
           </ul>
+
+          <div className="pt-2 border-t border-neutral-800">
+            <label className="input-label">Precio Total ($)</label>
+            <input
+              type="number"
+              step="0.01"
+              placeholder="0.00"
+              value={totalComanda}
+              onChange={(e) => setTotalComanda(e.target.value)}
+              className="input-field text-center font-black text-2xl text-amber-400"
+            />
+          </div>
         </div>
       )}
 
-      {/* Botón de Enviar */}
-      <button
-        onClick={enviarPedido}
-        disabled={enviando}
-        className="w-full bg-emerald-600 text-white py-4 rounded-2xl font-bold text-lg shadow-lg active:scale-95 transition disabled:opacity-50"
-      >
-        {enviando ? 'Enviando...' : '🚀 Enviar Pedido a Cocina'}
+      <button onClick={enviarPedido} disabled={enviando} className="btn-primario py-5 text-sm">
+        {enviando ? 'ENVIANDO...' : 'ENVIAR PEDIDO A COCINA'}
       </button>
     </div>
   )
@@ -267,195 +232,112 @@ export default function CamareroPage() {
 
 <file path="app/cocina/page.jsx">
 'use client'
-import { useState, useEffect, useCallback, useRef } from 'react'
+
+import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 
 export default function CocinaPage() {
   const [pedidos, setPedidos] = useState([])
-  const [audioHabilitado, setAudioHabilitado] = useState(false)
-  const audioRef = useRef(null)
 
   useEffect(() => {
-    audioRef.current = new Audio('/notificacion.mp3')
-  }, [])
-
-  // Envolvemos reproducirSonido en useCallback para que ESLint no reclame dependencias
-  const reproducirSonido = useCallback(() => {
-    if (audioRef.current && audioHabilitado) {
-      audioRef.current.currentTime = 0
-      audioRef.current.play().catch((err) => {
-        console.warn('El navegador bloqueó el audio:', err)
-      })
-    }
-  }, [audioHabilitado])
-
-  const habilitarAudio = () => {
-    if (audioRef.current) {
-      audioRef.current
-        .play()
-        .then(() => {
-          audioRef.current.pause()
-          audioRef.current.currentTime = 0
-          setAudioHabilitado(true)
-        })
-        .catch(console.error)
-    }
-  }
-
- // Cambia la función obtenerPedidos y el useEffect para usar .neq('estado', 'entregado')
-const obtenerPedidos = useCallback(async () => {
-  const { data, error } = await supabase
-    .from('pedidos')
-    .select('*')
-    .neq('estado', 'entregado')
-    .neq('estado', 'archivado')
-    .order('created_at', { ascending: true })
-
-  if (error) {
-    console.error('Error al obtener pedidos:', error)
-  } else {
-    setPedidos(data || [])
-  }
-}, [])
-
-  useEffect(() => {
-    let active = true
-
-    const cargarInicial = async () => {
+    // 1. Declaramos la función DENTRO del useEffect
+    const cargarPedidos = async () => {
       const { data, error } = await supabase
         .from('pedidos')
         .select('*')
+        .neq('estado', 'entregado')
+        .neq('estado', 'archivado')
         .order('created_at', { ascending: true })
 
-      if (active) {
-        if (error) {
-          console.error('Error al obtener pedidos:', error)
-        } else {
-          setPedidos(data || [])
-        }
+      if (!error && data) {
+        setPedidos(data)
       }
     }
 
-    cargarInicial()
+    // Carga inicial
+    cargarPedidos()
 
+    // Suscripción Realtime
     const canal = supabase
-      .channel('pedidos-realtime')
+      .channel('cocina-realtime')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'pedidos' },
-        (payload) => {
-          if (payload.eventType === 'INSERT') {
-            reproducirSonido()
-          }
-          obtenerPedidos()
+        () => {
+          cargarPedidos()
         }
       )
       .subscribe()
 
     return () => {
-      active = false
-      supabase.removeChannel(canal)
+      if (canal) {
+        supabase.removeChannel(canal)
+      }
     }
-  }, [obtenerPedidos, reproducirSonido])
+  }, []) // Ahora el array de dependencias vacío es 100% válido y sin advertencias
 
   const cambiarEstado = async (id, nuevoEstado) => {
+    // Al actualizar el registro, el evento postgres_changes de Realtime
+    // se dispara automáticamente y recarga las comandas.
     const { error } = await supabase
       .from('pedidos')
       .update({ estado: nuevoEstado })
       .eq('id', id)
 
     if (error) {
-      alert('Error al actualizar el estado')
-    } else {
-      obtenerPedidos()
+      alert('Error al actualizar la comanda: ' + error.message)
     }
   }
 
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-100 p-6">
-      {!audioHabilitado && (
-        <div className="max-w-7xl mx-auto mb-6 bg-amber-500/10 border border-amber-500/40 rounded-xl p-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <span className="text-2xl">🔔</span>
-            <p className="text-sm text-amber-200">
-              Activa las notificaciones de sonido para escuchar cuando ingresen nuevos pedidos a la cocina.
-            </p>
-          </div>
-          <button
-            onClick={habilitarAudio}
-            className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-4 py-2 rounded-lg text-sm transition"
-          >
-            Activar Sonido
-          </button>
-        </div>
-      )}
+    <div className="page-container-wide">
+      <header className="mb-8 text-center border-b border-neutral-800 pb-6">
+        <h1 className="header-title">Comandera de Cocina</h1>
+        <p className="header-subtitle">Gestión en Tiempo Real</p>
+      </header>
 
-      <h1 className="text-3xl font-bold text-center mb-8 border-b border-slate-700 pb-4">
-        👨‍🍳 Pantalla de Cocina {audioHabilitado && <span className="text-sm font-normal text-emerald-400">🔊 (Sonido Activo)</span>}
-      </h1>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-7xl mx-auto">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
         {pedidos.map((pedido) => (
-          <div
-            key={pedido.id}
-            className={`p-5 rounded-2xl border shadow-lg flex flex-col justify-between transition ${
-              pedido.estado === 'pendiente'
-                ? 'bg-slate-800 border-amber-500/50'
-                : pedido.estado === 'listo'
-                ? 'bg-slate-800/60 border-emerald-500/30'
-                : 'bg-slate-800/30 border-slate-700 opacity-60'
-            }`}
-          >
+          <div key={pedido.id} className="card-panel flex flex-col justify-between">
             <div>
-              <div className="flex justify-between items-start mb-3">
-                <span className="text-xl font-black text-amber-400">
-                  {pedido.mesa}
-                </span>
-                <span
-                  className={`text-xs px-2.5 py-1 rounded-full font-bold uppercase ${
-                    pedido.tipo_servicio === 'delivery'
-                      ? 'bg-red-900/60 text-red-300 border border-red-700'
-                      : 'bg-blue-900/60 text-blue-300 border border-blue-700'
-                  }`}
-                >
+              <div className="flex justify-between items-center mb-4 pb-3 border-b border-neutral-800">
+                <span className="text-xl font-bold text-amber-300">{pedido.mesa}</span>
+                <span className="px-3 py-1 text-[10px] font-black uppercase rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/30">
                   {pedido.tipo_servicio}
                 </span>
               </div>
 
-              <div className="border-t border-b border-slate-700/60 py-3 my-3">
-                <ul className="space-y-1.5">
-                  {pedido.items &&
-                    pedido.items.map((item, idx) => (
-                      <li key={idx} className="text-sm font-medium text-slate-200">
-                        <span className="text-amber-400 font-bold">{item.cantidad}x</span>{' '}
-                        {item.nombre}
-                      </li>
-                    ))}
-                </ul>
+              <div className="space-y-3">
+                {pedido.items?.map((item, idx) => (
+                  <div key={idx} className="text-xs">
+                    <span className="text-amber-400 font-black mr-2">{item.cantidad}x</span>
+                    <span className="text-zinc-200">{item.nombre}</span>
+                    {item.notas && <p className="text-[11px] text-amber-300/80 italic mt-1">Nota: {item.notas}</p>}
+                  </div>
+                ))}
               </div>
             </div>
 
-            <div className="mt-4 flex gap-2">
-              {pedido.estado === 'pendiente' && (
-                <button
-                  onClick={() => cambiarEstado(pedido.id, 'listo')}
-                  className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 rounded-xl transition"
-                >
-                  ✓ Marcar Listo
+            <div className="mt-6 pt-3 border-t border-neutral-800">
+              {pedido.estado === 'pendiente' ? (
+                <button onClick={() => cambiarEstado(pedido.id, 'listo')} className="btn-whatsapp py-3.5 text-xs">
+                  MARCAR LISTO
                 </button>
-              )}
-              {pedido.estado === 'listo' && (
-                <button
-                  onClick={() => cambiarEstado(pedido.id, 'entregado')}
-                  className="w-full bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold py-2.5 rounded-xl transition"
-                >
-                  Entregar y Archivar
+              ) : (
+                <button onClick={() => cambiarEstado(pedido.id, 'entregado')} className="btn-secundario py-3.5 text-xs">
+                  ENTREGAR Y ARCHIVAR
                 </button>
               )}
             </div>
           </div>
         ))}
       </div>
+
+      {pedidos.length === 0 && (
+        <div className="text-center py-20 text-neutral-500 text-xs font-black tracking-widest uppercase">
+          NO HAY COMANDAS PENDIENTES
+        </div>
+      )}
     </div>
   )
 }
@@ -463,6 +345,7 @@ const obtenerPedidos = useCallback(async () => {
 
 <file path="app/resumen/page.jsx">
 'use client'
+
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 
@@ -471,56 +354,81 @@ export default function ResumenPage() {
   const [totalPedidos, setTotalPedidos] = useState(0)
   const [cargando, setCargando] = useState(true)
 
-  const cargarTotales = async () => {
+  // Función principal para obtener totales
+  const obtenerTotales = async () => {
     setCargando(true)
     const hoy = new Date()
     hoy.setHours(0, 0, 0, 0)
 
     const { data, error } = await supabase
       .from('pedidos')
-      .select('*')
+      .select('total')
       .gte('created_at', hoy.toISOString())
+      .neq('estado', 'archivado')
 
     if (!error && data) {
       setTotalPedidos(data.length)
-      const suma = data.reduce((acc, p) => acc + (p.total || 0), 0)
+      const suma = data.reduce((acc, p) => acc + (Number(p.total) || 0), 0)
       setTotalVentas(suma)
+    } else if (error) {
+      console.error("Error al consultar pedidos:", error.message)
     }
+
     setCargando(false)
   }
 
+  // Carga inicial al montar la página
   useEffect(() => {
-    let activo = true
+    let cancelado = false
 
-    async function obtenerDatos() {
+    const cargarDatosIniciales = async () => {
       const hoy = new Date()
       hoy.setHours(0, 0, 0, 0)
 
       const { data, error } = await supabase
         .from('pedidos')
-        .select('*')
+        .select('total')
         .gte('created_at', hoy.toISOString())
+        .neq('estado', 'archivado')
 
-      if (activo) {
+      if (!cancelado) {
         if (!error && data) {
           setTotalPedidos(data.length)
-          const suma = data.reduce((acc, p) => acc + (p.total || 0), 0)
+          const suma = data.reduce((acc, p) => acc + (Number(p.total) || 0), 0)
           setTotalVentas(suma)
         }
         setCargando(false)
       }
     }
 
-    obtenerDatos()
+    cargarDatosIniciales()
 
     return () => {
-      activo = false
+      cancelado = true
     }
   }, [])
 
-  const cerrarJornada = async () => {
-    const confirmar = confirm("¿Deseas archivar los pedidos y limpiar la pantalla de cocina para el nuevo turno?")
+  // Cierre de jornada
+  const cerrarJornadaYEnviarWhatsApp = async () => {
+    if (totalPedidos === 0 && totalVentas === 0) {
+      alert("No hay comandas activas registradas para cerrar.")
+      return
+    }
+
+    const confirmar = confirm(
+      `CONFIRMACIÓN DE CIERRE DE JORNADA\n\nComandas procesadas: ${totalPedidos}\nTotal ganado hoy: $${totalVentas.toFixed(2)}\n\n¿Deseas cerrar la jornada, limpiar las comandas del día y abrir WhatsApp?`
+    )
     if (!confirmar) return
+
+    const hoyStr = new Date().toLocaleDateString('es-VE', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    })
+
+    const mensaje = `REPORTE DE CIERRE DE CAJA\nFecha: ${hoyStr}\n-----------------------------------\nComandas Atendidas: ${totalPedidos}\nTotal Ganado del Día: $${totalVentas.toFixed(2)}\n-----------------------------------\nJornada Finalizada Exitosamente.`
+
+    const urlWhatsApp = `https://wa.me/584246172567?text=${encodeURIComponent(mensaje)}`
 
     const { error } = await supabase
       .from('pedidos')
@@ -528,41 +436,50 @@ export default function ResumenPage() {
       .neq('estado', 'archivado')
 
     if (error) {
-      alert("Error al cerrar la jornada: " + error.message)
+      alert("Error al archivar las comandas: " + error.message)
     } else {
-      alert("¡Jornada cerrada con éxito! La cocina ha quedado limpia.")
-      cargarTotales()
+      window.open(urlWhatsApp, '_blank')
+      await obtenerTotales()
+      alert("Jornada cerrada con éxito.")
     }
   }
 
   return (
-    <div className="min-h-screen bg-slate-100 p-6 max-w-md mx-auto font-sans">
-      <h1 className="text-2xl font-bold text-slate-800 text-center mb-6">📊 Cierre de Caja y Totales</h1>
+    <div className="page-container flex flex-col justify-center min-h-screen">
+      <h1 className="header-title">Cierre de Caja</h1>
+      <p className="header-subtitle mb-8">Resumen Diario de Ventas</p>
 
-      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm mb-6 space-y-4">
+      <div className="card-panel mb-8 text-center space-y-6">
         <div>
-          <p className="text-xs font-bold text-slate-400 uppercase">Total Pedidos de Hoy</p>
-          <p className="text-3xl font-black text-slate-800">{cargando ? "..." : totalPedidos}</p>
+          <p className="input-label">Comandas Atendidas Hoy</p>
+          <p className="text-5xl font-black text-white">
+            {cargando ? "..." : totalPedidos}
+          </p>
         </div>
-        <div className="border-t border-slate-100 pt-3">
-          <p className="text-xs font-bold text-slate-400 uppercase">Monto Total Facturado</p>
-          <p className="text-3xl font-black text-emerald-600">${cargando ? "..." : totalVentas.toFixed(2)}</p>
+        
+        <div className="border-t border-neutral-800 pt-6">
+          <p className="input-label">Total Ganado Hoy</p>
+          <p className="text-5xl font-black text-amber-400">
+            ${cargando ? "..." : totalVentas.toFixed(2)}
+          </p>
         </div>
       </div>
 
-      <div className="space-y-3">
-        <button
-          onClick={cargarTotales}
-          className="w-full bg-slate-800 text-white py-3 rounded-xl font-bold text-sm"
+      <div className="space-y-4">
+        <button 
+          onClick={obtenerTotales} 
+          disabled={cargando}
+          className="btn-secundario py-4 text-xs disabled:opacity-50"
         >
-          🔄 Actualizar Totales
+          {cargando ? "Cargando..." : "Actualizar Datos"}
         </button>
 
-        <button
-          onClick={cerrarJornada}
-          className="w-full bg-red-600 hover:bg-red-700 text-white py-4 rounded-xl font-bold text-sm shadow-md"
+        <button 
+          onClick={cerrarJornadaYEnviarWhatsApp} 
+          disabled={cargando}
+          className="btn-whatsapp py-5 text-xs sm:text-sm disabled:opacity-50"
         >
-          🧹 Cerrar Jornada y Limpiar Cocina
+          Cerrar Jornada y Enviar a WhatsApp
         </button>
       </div>
     </div>
@@ -573,29 +490,189 @@ export default function ResumenPage() {
 <file path="app/globals.css">
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer utilities {
+  .font-display {
+    font-family: 'Playfair Display', Georgia, Cambria, "Times New Roman", Times, serif;
   }
 }
 
+:root {
+  --background: #09090b;
+  --foreground: #f4f4f5;
+}
+
 body {
-  background: var(--background);
+  background-color: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  overflow-x: hidden;
+  background-image: 
+    radial-gradient(at 0% 0%, rgba(212, 175, 55, 0.08) 0px, transparent 50%),
+    radial-gradient(at 100% 100%, rgba(212, 175, 55, 0.05) 0px, transparent 50%);
+}
+
+/* =========================================================
+   1. ESTRUCTURA GLOBAL Y PANTALLAS
+   ========================================================= */
+.page-container {
+  min-height: 100vh;
+  padding: 1rem;
+  max-width: 32rem; /* Por defecto estilo móvil */
+  margin-left: auto;
+  margin-right: auto;
+  animation: fadeInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.page-container-wide {
+  min-height: 100vh;
+  padding: 1rem;
+  max-width: 80rem; /* Ancho completo para cocina */
+  margin-left: auto;
+  margin-right: auto;
+  animation: fadeInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(16px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* =========================================================
+   2. ENCABEZADOS Y TEXTOS
+   ========================================================= */
+.header-title {
+  font-family: 'Playfair Display', Georgia, Cambria, serif;
+  font-size: 2.25rem;
+  font-weight: 900;
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: -0.025em;
+  background: linear-gradient(135deg, #fef08a 0%, #eab308 50%, #ca8a04 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin-bottom: 0.5rem;
+}
+
+.header-subtitle {
+  font-size: 0.65rem;
+  font-weight: 900;
+  color: #a1a1aa;
+  text-transform: uppercase;
+  letter-spacing: 0.25em;
+  text-align: center;
+}
+
+/* =========================================================
+   3. TARJETAS Y CONTENEDORES (GLASSMORPHISM)
+   ========================================================= */
+.card-panel {
+  background: rgba(24, 24, 27, 0.9);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(234, 179, 8, 0.35);
+  box-shadow: 0 10px 30px -10px rgba(234, 179, 8, 0.15);
+  border-radius: 1.5rem;
+  padding: 1.5rem;
+}
+
+/* =========================================================
+   4. FORMULARIOS E INPUTS
+   ========================================================= */
+.input-field {
+  width: 100%;
+  padding: 1rem;
+  background-color: #18181b;
+  border: 1px solid #27272a;
+  border-radius: 1rem;
+  color: #f4f4f5;
+  font-size: 0.875rem;
+  outline: none;
+  transition: all 0.2s;
+}
+
+.input-field:focus {
+  border-color: #eab308;
+}
+
+.input-label {
+  display: block;
+  font-size: 0.625rem;
+  font-weight: 900;
+  color: #facc15;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 0.5rem;
+}
+
+/* =========================================================
+   5. BOTONES GLOBALES
+   ========================================================= */
+/* Botón Dorado (Acciones Principales) */
+.btn-primario {
+  width: 100%;
+  background: linear-gradient(135deg, #fef08a 0%, #eab308 50%, #ca8a04 100%);
+  color: #09090b;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  border: 1px solid #fef08a;
+  box-shadow: 0 0 20px rgba(234, 179, 8, 0.3);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 1rem;
+}
+
+.btn-primario:hover {
+  transform: translateY(-2px) scale(1.01);
+  box-shadow: 0 0 30px rgba(234, 179, 8, 0.6);
+}
+
+.btn-primario:active {
+  transform: translateY(1px) scale(0.98);
+}
+
+/* Botón Secundario (Oscuro) */
+.btn-secundario {
+  width: 100%;
+  background-color: #171717;
+  color: #fef08a;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  border: 2px solid rgba(234, 179, 8, 0.5);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 1rem;
+}
+
+.btn-secundario:hover {
+  background-color: #262626;
+  border-color: #eab308;
+  transform: translateY(-1px);
+}
+
+.btn-secundario:active {
+  transform: translateY(1px) scale(0.98);
+}
+
+/* Botón Verde (WhatsApp y Listo) */
+.btn-whatsapp {
+  width: 100%;
+  background: linear-gradient(135deg, #34d399 0%, #059669 50%, #047857 100%);
+  color: #ffffff;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  border: 1px solid #6ee7b7;
+  box-shadow: 0 0 25px rgba(16, 185, 129, 0.4);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 1rem;
+}
+
+.btn-whatsapp:hover {
+  transform: translateY(-2px) scale(1.01);
+  box-shadow: 0 0 35px rgba(16, 185, 129, 0.7);
+}
+
+.btn-whatsapp:active {
+  transform: translateY(1px) scale(0.98);
 }
 </file>
 
@@ -636,28 +713,46 @@ import Link from 'next/link';
 
 export default function Home() {
   return (
-    <div className="min-h-screen bg-slate-900 text-white flex flex-col items-center justify-center p-6 text-center">
-      <h1 className="text-4xl font-extrabold mb-2 text-amber-400">El Cordón y La Rosa 🌹</h1>
-      <p className="text-slate-400 mb-8 max-w-sm">Sistema de Comandera y Control de Cocina en Tiempo Real</p>
+    <div className="min-h-screen bg-neutral-950 text-neutral-100 flex flex-col items-center justify-center p-6 text-center animate-fade-in">
+      <div className="max-w-md w-full bg-neutral-900/80 border border-amber-500/30 rounded-3xl p-8 shadow-2xl backdrop-blur-sm gold-border-glow">
+        
+        {/* Isotipo / Emoji Elegante */}
+        <div className="text-5xl mb-3 animate-bounce">🌹</div>
 
-      <div className="flex flex-col sm:flex-row gap-4 w-full max-w-xs">
-        <Link 
-          href="/camarero"
-          className="w-full bg-blue-600 hover:bg-blue-500 font-bold py-4 rounded-2xl shadow-lg transition text-center"
-        >
-          📝 Modo Camarero
-        </Link>
+        <h1 className="text-3xl font-extrabold tracking-wide text-amber-400 mb-2 font-serif">
+          El Cordón y La Rosa
+        </h1>
+        <p className="text-xs tracking-widest text-neutral-400 uppercase mb-8 border-b border-amber-500/20 pb-4">
+          Sistema Gastro Elegance
+        </p>
 
-        <Link 
-          href="/cocina"
-          className="w-full bg-emerald-600 hover:bg-emerald-500 font-bold py-4 rounded-2xl shadow-lg transition text-center"
-        >
-          👨‍🍳 Modo Cocina
-        </Link>
+        <div className="flex flex-col gap-4">
+          <Link 
+            href="/camarero"
+            className="w-full bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-neutral-950 font-bold py-3.5 rounded-xl shadow-lg transition-all duration-300 transform active:scale-95 flex items-center justify-center gap-2"
+          >
+            <span>📝</span> Modo Camarero
+          </Link>
+
+          <Link 
+            href="/cocina"
+            className="w-full bg-neutral-800 hover:bg-neutral-700 text-amber-300 border border-amber-500/40 font-semibold py-3.5 rounded-xl shadow-md transition-all duration-300 transform active:scale-95 flex items-center justify-center gap-2"
+          >
+            <span>👨‍🍳</span> Modo Cocina
+          </Link>
+
+          <Link 
+            href="/resumen"
+            className="w-full text-neutral-400 hover:text-amber-400 text-xs tracking-wider uppercase pt-2 transition-colors duration-200"
+          >
+            📊 Ver Cierre & Totales
+          </Link>
+        </div>
+
       </div>
     </div>
   );
-}// Version 2
+}
 </file>
 
 <file path="lib/supabase.js">

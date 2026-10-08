@@ -1,49 +1,41 @@
 'use client'
-import { useState, useEffect, useCallback, useRef } from 'react'
+
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 
 export default function CocinaPage() {
   const [pedidos, setPedidos] = useState([])
-  const [audioHabilitado, setAudioHabilitado] = useState(false)
+  const [sonidoHabilitado, setSonidoHabilitado] = useState(false)
   const audioRef = useRef(null)
-
+  
+  // Guardamos el estado del sonido en un ref para no reiniciar suscripciones realtime
+  const sonidoRef = useRef(sonidoHabilitado)
   useEffect(() => {
-    const audio = new Audio('/notificacion.mp3')
-    
-    audio.addEventListener('error', (e) => {
-      console.error('Error al cargar el archivo de audio /notificacion.mp3:', e)
-    })
+    sonidoRef.current = sonidoHabilitado
+  }, [sonidoHabilitado])
 
-    audioRef.current = audio
-  }, [])
-
-  const reproducirSonido = useCallback(() => {
-    if (audioRef.current && audioHabilitado) {
-      audioRef.current.currentTime = 0
-      audioRef.current.play().catch((err) => {
-        console.warn('No se pudo reproducir el sonido:', err)
-      })
+  const toggleSonido = () => {
+    if (!sonidoHabilitado) {
+      if (audioRef.current) {
+        audioRef.current.play().then(() => {
+          audioRef.current.pause()
+          audioRef.current.currentTime = 0
+          setSonidoHabilitado(true)
+        }).catch((err) => console.error('Error al reproducir audio:', err))
+      }
+    } else {
+      setSonidoHabilitado(false)
     }
-  }, [audioHabilitado])
-
-  const habilitarAudio = () => {
-    if (!audioRef.current) return
-
-    audioRef.current
-      .play()
-      .then(() => {
-        audioRef.current.pause()
-        audioRef.current.currentTime = 0
-        setAudioHabilitado(true)
-      })
-      .catch((err) => {
-        console.error('Error al habilitar el sonido:', err)
-        alert('No se pudo cargar el audio. Verifica que el archivo public/notificacion.mp3 exista.')
-      })
   }
 
-  // Función para obtener la lista de pedidos activos
-  const obtenerPedidos = useCallback(async () => {
+  const reproducirAlerta = () => {
+    if (sonidoRef.current && audioRef.current) {
+      audioRef.current.currentTime = 0
+      audioRef.current.play().catch((err) => console.warn('Error al reproducir audio:', err))
+    }
+  }
+
+  const cargarPedidos = async () => {
     const { data, error } = await supabase
       .from('pedidos')
       .select('*')
@@ -51,43 +43,54 @@ export default function CocinaPage() {
       .neq('estado', 'archivado')
       .order('created_at', { ascending: true })
 
-    if (error) {
-      console.error('Error al obtener pedidos:', error)
-    } else {
-      setPedidos(data || [])
+    if (!error && data) {
+      setPedidos(data)
     }
-  }, [])
+  }
 
   useEffect(() => {
-    // 1. Cargar los pedidos existentes al montar el componente
-    obtenerPedidos()
+    let montado = true
 
-    // 2. Suscribirse a los cambios en tiempo real en la tabla 'pedidos'
+    const inicializar = async () => {
+      const { data, error } = await supabase
+        .from('pedidos')
+        .select('*')
+        .neq('estado', 'entregado')
+        .neq('estado', 'archivado')
+        .order('created_at', { ascending: true })
+
+      if (montado && !error && data) {
+        setPedidos(data)
+      }
+    }
+
+    // Diferimos la carga inicial al siguiente tick para no bloquear la fase síncrona
+    Promise.resolve().then(inicializar)
+
     const canal = supabase
-      .channel('pedidos-cocina-realtime')
+      .channel('cocina-realtime')
       .on(
         'postgres_changes',
-        { 
-          event: '*', 
-          schema: 'public', 
-          table: 'pedidos' 
-        },
-        (payload) => {
-          // Si entra un pedido nuevo (INSERT), suena la alarma
-          if (payload.eventType === 'INSERT') {
-            reproducirSonido()
-          }
-          // Recargar automáticamente la lista en pantalla sin refrescar el navegador
-          obtenerPedidos()
+        { event: 'INSERT', schema: 'public', table: 'pedidos' },
+        () => {
+          reproducirAlerta()
+          cargarPedidos()
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'pedidos' },
+        () => {
+          cargarPedidos()
         }
       )
       .subscribe()
 
-    // 3. Limpiar la suscripción cuando el usuario sale de la página
     return () => {
-      supabase.removeChannel(canal)
+      montado = false
+      if (canal) supabase.removeChannel(canal)
     }
-  }, [obtenerPedidos, reproducirSonido])
+  }, [])
 
   const cambiarEstado = async (id, nuevoEstado) => {
     const { error } = await supabase
@@ -95,106 +98,91 @@ export default function CocinaPage() {
       .update({ estado: nuevoEstado })
       .eq('id', id)
 
-    if (error) {
-      alert('Error al actualizar el estado')
-    } else {
-      obtenerPedidos()
-    }
+    if (error) alert('Error al actualizar la comanda: ' + error.message)
   }
 
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-100 p-6 font-sans">
-      {!audioHabilitado && (
-        <div className="max-w-7xl mx-auto mb-6 bg-amber-500/10 border border-amber-500/40 rounded-xl p-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <span className="text-2xl">🔔</span>
-            <p className="text-sm text-amber-200">
-              Activa las notificaciones de sonido para escuchar cuando ingresen nuevos pedidos a la cocina.
-            </p>
-          </div>
-          <button
-            onClick={habilitarAudio}
-            className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-4 py-2 rounded-lg text-sm transition"
-          >
-            Activar Sonido
-          </button>
+    <div className="page-container-wide">
+      <audio ref={audioRef} src="/Notificacion.mp3" preload="auto" />
+
+      <header className="mb-8 text-center border-b border-neutral-800 pb-6 flex flex-col sm:flex-row justify-between items-center gap-4">
+        <div className="text-center sm:text-left">
+          <h1 className="header-title !text-left">Comandera de Cocina</h1>
+          <p className="header-subtitle !text-left">Gestión en Tiempo Real</p>
         </div>
-      )}
 
-      <h1 className="text-3xl font-bold text-center mb-8 border-b border-slate-700 pb-4">
-        👨‍🍳 Pantalla de Cocina {audioHabilitado && <span className="text-sm font-normal text-emerald-400">🔊 (Sonido Activo)</span>}
-      </h1>
+        <button
+          onClick={toggleSonido}
+          className={`px-4 py-2.5 rounded-xl font-bold text-xs uppercase transition-all flex items-center gap-2 border ${
+            sonidoHabilitado
+              ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 shadow-lg shadow-emerald-500/10'
+              : 'bg-red-500/20 text-red-400 border-red-500/40 shadow-lg shadow-red-500/10'
+          }`}
+        >
+          <span>{sonidoHabilitado ? '🔔' : '🔕'}</span>
+          <span>{sonidoHabilitado ? 'Sonido Activado' : 'Activar Sonido'}</span>
+        </button>
+      </header>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-7xl mx-auto">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
         {pedidos.map((pedido) => (
-          <div
-            key={pedido.id}
-            className={`p-5 rounded-2xl border shadow-lg flex flex-col justify-between transition ${
-              pedido.estado === 'pendiente'
-                ? 'bg-slate-800 border-amber-500/50'
-                : pedido.estado === 'listo'
-                ? 'bg-slate-800/60 border-emerald-500/30'
-                : 'bg-slate-800/30 border-slate-700 opacity-60'
-            }`}
-          >
+          <div key={pedido.id} className="card-panel flex flex-col justify-between">
             <div>
-              <div className="flex justify-between items-start mb-3">
-                <span className="text-xl font-black text-amber-400">
-                  {pedido.mesa}
-                </span>
-                <span
-                  className={`text-xs px-2.5 py-1 rounded-full font-bold uppercase ${
-                    pedido.tipo_servicio === 'delivery'
-                      ? 'bg-red-900/60 text-red-300 border border-red-700'
-                      : 'bg-blue-900/60 text-blue-300 border border-blue-700'
-                  }`}
-                >
+              <div className="flex justify-between items-center mb-4 pb-3 border-b border-neutral-800">
+                <span className="text-xl font-bold text-amber-300">{pedido.mesa}</span>
+                <span className="px-3 py-1 text-[10px] font-black uppercase rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/30">
                   {pedido.tipo_servicio}
                 </span>
               </div>
 
-              {/* Lista de productos y notas */}
-              <div className="border-t border-b border-slate-700/60 py-3 my-3">
-                <ul className="space-y-2">
-                  {pedido.items &&
-                    pedido.items.map((item, idx) => (
-                      <li key={idx} className="text-sm font-medium text-slate-200">
-                        <div className="flex items-baseline gap-1.5">
-                          <span className="text-amber-400 font-bold">{item.cantidad}x</span>
-                          <span>{item.nombre}</span>
-                        </div>
-                        {item.notas && (
-                          <p className="text-xs text-amber-300 font-semibold bg-amber-950/60 border border-amber-500/30 px-2 py-1 rounded mt-1">
-                            📌 {item.notas}
-                          </p>
-                        )}
-                      </li>
-                    ))}
-                </ul>
+              <div className="space-y-3">
+                {pedido.items?.map((item, idx) => (
+                  <div key={idx} className="text-xs">
+                    <span className="text-amber-400 font-black mr-2">{item.cantidad}x</span>
+                    <span className="text-zinc-200">{item.nombre}</span>
+                    {item.notas && <p className="text-[11px] text-amber-300/80 italic mt-1">Nota: {item.notas}</p>}
+                  </div>
+                ))}
               </div>
             </div>
 
-            <div className="mt-4 flex gap-2">
+            <div className="mt-6 pt-3 border-t border-neutral-800 flex flex-col gap-2">
               {pedido.estado === 'pendiente' && (
-                <button
-                  onClick={() => cambiarEstado(pedido.id, 'listo')}
-                  className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 rounded-xl transition"
+                <button 
+                  onClick={() => cambiarEstado(pedido.id, 'en_preparacion')} 
+                  className="btn-secundario py-3 text-xs border-amber-500/60 text-amber-300"
                 >
-                  ✓ Marcar Listo
+                  🍳 EMPEZAR PREPARACIÓN
                 </button>
               )}
-              {pedido.estado === 'listo' && (
-                <button
-                  onClick={() => cambiarEstado(pedido.id, 'entregado')}
-                  className="w-full bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold py-2.5 rounded-xl transition"
+
+              {pedido.estado === 'en_preparacion' && (
+                <button 
+                  onClick={() => cambiarEstado(pedido.id, 'listo')} 
+                  className="btn-whatsapp py-3.5 text-xs"
                 >
-                  Entregar y Archivar
+                  ✅ MARCAR COMO LISTO
+                </button>
+              )}
+
+              {pedido.estado === 'listo' && (
+                <button 
+                  onClick={() => cambiarEstado(pedido.id, 'entregado')} 
+                  className="btn-secundario py-3.5 text-xs opacity-80"
+                >
+                  📦 ENTREGAR Y ARCHIVAR
                 </button>
               )}
             </div>
           </div>
         ))}
       </div>
+
+      {pedidos.length === 0 && (
+        <div className="text-center py-20 text-neutral-500 text-xs font-black tracking-widest uppercase">
+          NO HAY COMANDAS PENDIENTES
+        </div>
+      )}
     </div>
   )
 }
