@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
+import Link from 'next/link'
 
 export default function PantallaPublicaPage() {
   const [pedidos, setPedidos] = useState([])
@@ -35,7 +36,6 @@ export default function PantallaPublicaPage() {
       }
     }
 
-    // Diferimos la carga inicial al siguiente tick
     Promise.resolve().then(inicializar)
 
     const canal = supabase
@@ -60,8 +60,20 @@ export default function PantallaPublicaPage() {
   const enPreparacion = pedidos.filter((p) => p.estado === 'en_preparacion')
   const listos = pedidos.filter((p) => p.estado === 'listo')
 
+  // Mapeamos para asignar un número consecutivo (Comanda #1, Comanda #2...) basado en la lista global de activos
+  const obtenerNumeroComanda = (id) => {
+    const index = pedidos.findIndex((p) => p.id === id)
+    return index !== -1 ? `Comanda #${index + 1}` : 'Comanda'
+  }
+
   return (
     <div className="min-h-screen bg-black text-white p-6 sm:p-10 flex flex-col justify-between">
+      <div>
+        <Link href="/" className="inline-flex items-center gap-2 text-amber-400 hover:text-amber-300 text-xs font-bold uppercase tracking-wider mb-4">
+          <span>←</span> Volver al Inicio
+        </Link>
+      </div>
+
       <header className="text-center mb-8 pb-4 border-b border-neutral-800">
         <h1 className="text-3xl sm:text-5xl font-black uppercase tracking-wider text-amber-400">
           Estado de Comandas
@@ -80,7 +92,7 @@ export default function PantallaPublicaPage() {
           <div className="space-y-4 flex-1">
             {enEspera.map((p) => (
               <div key={p.id} className="bg-neutral-800/80 p-4 rounded-2xl flex justify-between items-center border border-neutral-700/50">
-                <span className="text-2xl font-black text-white">{p.mesa}</span>
+                <span className="text-xl sm:text-2xl font-black text-white">{obtenerNumeroComanda(p.id)}</span>
                 <span className="text-xs uppercase font-bold text-amber-400 bg-amber-500/10 px-3 py-1 rounded-full border border-amber-500/20">
                   {p.tipo_servicio}
                 </span>
@@ -100,7 +112,7 @@ export default function PantallaPublicaPage() {
           <div className="space-y-4 flex-1">
             {enPreparacion.map((p) => (
               <div key={p.id} className="bg-neutral-800/80 p-4 rounded-2xl flex justify-between items-center border border-neutral-700/50">
-                <span className="text-2xl font-black text-white">{p.mesa}</span>
+                <span className="text-xl sm:text-2xl font-black text-white">{obtenerNumeroComanda(p.id)}</span>
                 <span className="text-xs uppercase font-bold text-blue-400 bg-blue-500/10 px-3 py-1 rounded-full border border-blue-500/20">
                   {p.tipo_servicio}
                 </span>
@@ -120,7 +132,7 @@ export default function PantallaPublicaPage() {
           <div className="space-y-4 flex-1">
             {listos.map((p) => (
               <div key={p.id} className="bg-emerald-950/40 p-4 rounded-2xl flex justify-between items-center border border-emerald-500/40 animate-pulse">
-                <span className="text-2xl font-black text-emerald-300">{p.mesa}</span>
+                <span className="text-xl sm:text-2xl font-black text-emerald-300">{obtenerNumeroComanda(p.id)}</span>
                 <span className="text-xs uppercase font-bold text-emerald-300 bg-emerald-500/20 px-3 py-1 rounded-full border border-emerald-500/30">
                   ¡Retirar!
                 </span>

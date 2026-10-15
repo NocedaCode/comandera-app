@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
+import ProteccionPin from '@/components/ProteccionPin'
+import Link from 'next/link'
 
 export default function ResumenPage() {
   const [totalVentas, setTotalVentas] = useState(0)
@@ -19,7 +21,6 @@ export default function ResumenPage() {
     localStorage.setItem('tasa_dolar_bs', valor)
   }
 
-  // Función reutilizable solo para eventos de usuario (botones)
   const obtenerTotales = async () => {
     setCargando(true)
     const hoy = new Date()
@@ -39,8 +40,6 @@ export default function ResumenPage() {
     setCargando(false)
   }
 
-  // EFECTO DE CARGA INICIAL
-  // Se usa un microtask (Promise.resolve) para desacoplar el fetch de la fase síncrona del render
   useEffect(() => {
     let montado = true
 
@@ -64,7 +63,6 @@ export default function ResumenPage() {
       }
     }
 
-    // Diferimos la ejecución asíncrona al siguiente tick
     Promise.resolve().then(cargar)
 
     return () => {
@@ -111,63 +109,71 @@ export default function ResumenPage() {
   }
 
   return (
-    <div className="page-container flex flex-col justify-center min-h-screen pb-12">
-      <h1 className="header-title">Cierre de Caja</h1>
-      <p className="header-subtitle mb-6">Resumen Diario de Ventas</p>
-
-      {/* Ajuste de Tasa de Cambio */}
-      <div className="card-panel mb-6">
-        <label className="input-label">Tasa del Dólar del Día (Bs/$)</label>
-        <input
-          type="number"
-          step="0.01"
-          placeholder="Ej: 36.50"
-          value={tasaDolar}
-          onChange={(e) => guardarTasa(e.target.value)}
-          className="input-field text-center font-bold text-amber-400 text-lg"
-        />
-      </div>
-
-      <div className="card-panel mb-8 text-center space-y-6">
-        <div>
-          <p className="input-label">Comandas Atendidas Hoy</p>
-          <p className="text-4xl font-black text-white">
-            {cargando ? "..." : totalPedidos}
-          </p>
-        </div>
-        
-        <div className="border-t border-neutral-800 pt-4">
-          <p className="input-label">Total Ganado (USD)</p>
-          <p className="text-4xl font-black text-amber-400">
-            ${cargando ? "..." : totalVentas.toFixed(2)}
-          </p>
+    <ProteccionPin titulo="Cierre de Caja" pinPersonalizado="9876">
+      <div className="page-container flex flex-col justify-center min-h-screen pb-12">
+        <div className="mb-4">
+          <Link href="/" className="inline-flex items-center gap-2 text-amber-400 hover:text-amber-300 text-xs font-bold uppercase tracking-wider">
+            <span>←</span> Volver al Inicio
+          </Link>
         </div>
 
-        <div className="border-t border-neutral-800 pt-4">
-          <p className="input-label">Total Ganado (Bolívares)</p>
-          <p className="text-3xl font-black text-emerald-400">
-            Bs. {cargando ? "..." : totalEnBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-          </p>
+        <h1 className="header-title">Cierre de Caja</h1>
+        <p className="header-subtitle mb-6">Resumen Diario de Ventas</p>
+
+        {/* Ajuste de Tasa de Cambio */}
+        <div className="card-panel mb-6">
+          <label className="input-label">Tasa del Dólar del Día (Bs/$)</label>
+          <input
+            type="number"
+            step="0.01"
+            placeholder="Ej: 36.50"
+            value={tasaDolar}
+            onChange={(e) => guardarTasa(e.target.value)}
+            className="input-field text-center font-bold text-amber-400 text-lg"
+          />
+        </div>
+
+        <div className="card-panel mb-8 text-center space-y-6">
+          <div>
+            <p className="input-label">Comandas Atendidas Hoy</p>
+            <p className="text-4xl font-black text-white">
+              {cargando ? "..." : totalPedidos}
+            </p>
+          </div>
+          
+          <div className="border-t border-neutral-800 pt-4">
+            <p className="input-label">Total Ganado (USD)</p>
+            <p className="text-4xl font-black text-amber-400">
+              ${cargando ? "..." : totalVentas.toFixed(2)}
+            </p>
+          </div>
+
+          <div className="border-t border-neutral-800 pt-4">
+            <p className="input-label">Total Ganado (Bolívares)</p>
+            <p className="text-3xl font-black text-emerald-400">
+              Bs. {cargando ? "..." : totalEnBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <button 
+            onClick={obtenerTotales} 
+            disabled={cargando}
+            className="btn-secundario py-4 text-xs disabled:opacity-50"
+          >
+            {cargando ? "Cargando..." : "Actualizar Datos"}
+          </button>
+
+          <button 
+            onClick={cerrarJornadaYEnviarWhatsApp} 
+            disabled={cargando}
+            className="btn-whatsapp py-5 text-xs sm:text-sm disabled:opacity-50"
+          >
+            Cerrar Jornada y Enviar a WhatsApp
+          </button>
         </div>
       </div>
-
-      <div className="space-y-4">
-        <button 
-          onClick={obtenerTotales} 
-          disabled={cargando}
-          className="btn-secundario py-4 text-xs disabled:opacity-50"
-        >
-          {cargando ? "Cargando..." : "Actualizar Datos"}
-        </button>
-
-        <button 
-          onClick={cerrarJornadaYEnviarWhatsApp} 
-          disabled={cargando}
-          className="btn-whatsapp py-5 text-xs sm:text-sm disabled:opacity-50"
-        >
-          Cerrar Jornada y Enviar a WhatsApp
-        </button>
-      </div>
-    </div>
+    </ProteccionPin>
   )
 }
